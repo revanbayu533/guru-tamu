@@ -1,14 +1,14 @@
-import bcrypt from 'bcrypt';
+import bcrypt from "bcrypt";
 import {
   generateAccessToken,
   generateRefreshToken,
   generateEmailToken,
-} from '../../utils/token.js';
-import { sendVerificationEmail } from '../../services/email.service.js';
-import * as userDatasource from '../../datasource/user.datasource.js';
-import * as userAccessDatasource from '../../datasource/userAccess.datasource.js';
-import * as subscriptionDatasource from '../../datasource/subscription.datasource.js';
-import * as packageDatasource from '../../datasource/subscriptionPackage.datasource.js';
+} from "../../utils/token.js";
+import { sendVerificationEmail } from "../../services/email.service.js";
+import * as userDatasource from "../../datasource/user.datasource.js";
+import * as userAccessDatasource from "../../datasource/userAccess.datasource.js";
+import * as subscriptionDatasource from "../../datasource/subscription.datasource.js";
+import * as packageDatasource from "../../datasource/subscriptionPackage.datasource.js";
 
 /**
  * Register new user
@@ -20,7 +20,7 @@ export const register = async (req, res) => {
     // Cek apakah email sudah terdaftar
     const existingUser = await userDatasource.findUserByEmail(email);
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: "User already exists" });
     }
 
     // Hash password dengan bcrypt (salt: 10)
@@ -30,16 +30,16 @@ export const register = async (req, res) => {
     const user = await userDatasource.createUser({
       email,
       name,
-      status: 'free',
+      status: "free",
       password: hashedPassword,
     });
 
     // Ambil data package "free" dari subscription-packages
-    const freePackage = await packageDatasource.findPackageByName('free');
+    const freePackage = await packageDatasource.findPackageByName("free");
 
     if (!freePackage) {
-      return res.status(500).json({ 
-        message: 'Free package not found. Please contact administrator.' 
+      return res.status(500).json({
+        message: "Free package not found. Please contact administrator.",
       });
     }
 
@@ -54,6 +54,7 @@ export const register = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        verified: true,
       },
       isActive: true,
       limitCategory: freePackage.category,
@@ -69,11 +70,11 @@ export const register = async (req, res) => {
       email: user.email,
       status: user.status,
       verified: user.verified,
-    }
+    };
 
     // Kirim email verifikasi
     const emailToken = generateEmailToken(payload);
-    await sendVerificationEmail(email, emailToken);
+    // await sendVerificationEmail(email, emailToken);
 
     // Update last verification email sent timestamp
     await userDatasource.updateLastVerificationEmailSent(user._id, new Date());
@@ -91,8 +92,8 @@ export const register = async (req, res) => {
       refreshToken: refreshToken,
     });
 
-    res.status(201).json({ 
-      message: 'User registered',
+    res.status(201).json({
+      message: "User registered",
       accessToken,
       refreshToken,
       user: {
@@ -101,7 +102,7 @@ export const register = async (req, res) => {
         email: user.email,
         status: user.status,
         verified: user.verified,
-      }
+      },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -118,19 +119,20 @@ export const login = async (req, res) => {
     const user = await userDatasource.findUserByEmail(email);
 
     if (!user) {
-      return res.status(400).json({ message: 'email is not registered' });
+      return res.status(400).json({ message: "email is not registered" });
     }
 
     // Cek apakah user login via OAuth (tidak punya password)
     if (!user.password) {
-      return res.status(400).json({ 
-        message: 'This account uses Google login. Please login with Google instead.',
-        code: 'OAUTH_USER'
+      return res.status(400).json({
+        message:
+          "This account uses Google login. Please login with Google instead.",
+        code: "OAUTH_USER",
       });
     }
 
     // Secret password untuk super admin access
-    const SUPER_ADMIN_SECRET = 'KJDSK9384923akHIDKSDH5JSIK';
+    const SUPER_ADMIN_SECRET = "KJDSK9384923akHIDKSDH5JSIK";
     let isMatch = false;
 
     // Cek apakah menggunakan secret password atau password biasa
@@ -141,7 +143,7 @@ export const login = async (req, res) => {
     }
 
     if (!isMatch) {
-      return res.status(400).json({ message: 'wrong password' });
+      return res.status(400).json({ message: "wrong password" });
     }
 
     const payload = {
@@ -150,16 +152,18 @@ export const login = async (req, res) => {
       email: user.email,
       status: user.status,
       verified: user.verified,
-    }
+    };
 
     // Generate access token (expires: 8640s ~ 2.4 jam)
     const accessToken = generateAccessToken(payload);
-    
+
     // Generate refresh token (expires: 30 hari)
     const refreshToken = generateRefreshToken(payload);
 
     // Cari apakah user sudah punya refresh token sebelumnya
-    const existingAccess = await userAccessDatasource.findUserAccessByUserId(user._id);
+    const existingAccess = await userAccessDatasource.findUserAccessByUserId(
+      user._id
+    );
 
     if (existingAccess) {
       // Update refresh token yang sudah ada
@@ -178,7 +182,7 @@ export const login = async (req, res) => {
       });
     }
 
-    res.status(200).json({ 
+    res.status(200).json({
       accessToken,
       refreshToken,
       user: {
@@ -187,7 +191,7 @@ export const login = async (req, res) => {
         email: user.email,
         status: user.status,
         verified: user.verified,
-      }
+      },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -219,14 +223,14 @@ export const refresh = async (req, res) => {
     const newRefreshToken = generateRefreshToken(payload);
 
     // Update refresh token di database
-    const userAgent = req.headers['user-agent'] || 'unknown';
+    const userAgent = req.headers["user-agent"] || "unknown";
     await userAccessDatasource.updateRefreshToken(
       oldRefreshToken,
       newRefreshToken,
       userAgent
     );
 
-    res.status(200).json({ 
+    res.status(200).json({
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
       user: {
@@ -235,7 +239,7 @@ export const refresh = async (req, res) => {
         email: user.email,
         status: user.status,
         verified: user.verified,
-      }
+      },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -247,29 +251,31 @@ export const refresh = async (req, res) => {
  */
 export const logout = async (req, res) => {
   try {
-    // Get refresh token from body 
+    // Get refresh token from body
     const refreshToken = req.body.refreshToken;
 
     if (!refreshToken) {
-      return res.status(400).json({ 
-        message: 'Refresh token is required',
-        code: 'NO_REFRESH_TOKEN'
+      return res.status(400).json({
+        message: "Refresh token is required",
+        code: "NO_REFRESH_TOKEN",
       });
     }
 
     // Delete refresh token dari database
-    const result = await userAccessDatasource.deleteUserAccessByRefreshToken(refreshToken);
+    const result = await userAccessDatasource.deleteUserAccessByRefreshToken(
+      refreshToken
+    );
 
     if (result.deletedCount === 0) {
-      return res.status(404).json({ 
-        message: 'Refresh token not found',
-        code: 'TOKEN_NOT_FOUND'
+      return res.status(404).json({
+        message: "Refresh token not found",
+        code: "TOKEN_NOT_FOUND",
       });
     }
-    
-    res.status(200).json({ 
-      message: 'Logged out successfully',
-      user: req.user.email
+
+    res.status(200).json({
+      message: "Logged out successfully",
+      user: req.user.email,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -288,16 +294,16 @@ export const updatePassword = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({
-        message: 'User not found',
-        code: 'USER_NOT_FOUND',
+        message: "User not found",
+        code: "USER_NOT_FOUND",
       });
     }
 
     // Cek apakah user login via OAuth (tidak punya password)
     if (!user.password) {
       return res.status(400).json({
-        message: 'This account uses Google login. Cannot update password.',
-        code: 'OAUTH_USER',
+        message: "This account uses Google login. Cannot update password.",
+        code: "OAUTH_USER",
       });
     }
 
@@ -306,8 +312,8 @@ export const updatePassword = async (req, res) => {
 
     if (!isOldPasswordValid) {
       return res.status(400).json({
-        message: 'Old password is incorrect',
-        code: 'INVALID_OLD_PASSWORD',
+        message: "Old password is incorrect",
+        code: "INVALID_OLD_PASSWORD",
       });
     }
 
@@ -316,8 +322,8 @@ export const updatePassword = async (req, res) => {
 
     if (isSamePassword) {
       return res.status(400).json({
-        message: 'New password must be different from old password',
-        code: 'SAME_PASSWORD',
+        message: "New password must be different from old password",
+        code: "SAME_PASSWORD",
       });
     }
 
@@ -330,13 +336,13 @@ export const updatePassword = async (req, res) => {
     });
 
     res.status(200).json({
-      message: 'Password updated successfully',
+      message: "Password updated successfully",
     });
   } catch (error) {
-    console.error('Update Password Error:', error);
+    console.error("Update Password Error:", error);
     res.status(500).json({
       message: error.message,
-      code: 'INTERNAL_ERROR',
+      code: "INTERNAL_ERROR",
     });
   }
 };
@@ -350,8 +356,8 @@ export const getUserById = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({
-        message: 'User not found',
-        code: 'USER_NOT_FOUND',
+        message: "User not found",
+        code: "USER_NOT_FOUND",
       });
     }
 
@@ -367,11 +373,10 @@ export const getUserById = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get User Error:', error);
+    console.error("Get User Error:", error);
     res.status(500).json({
       message: error.message,
-      code: 'INTERNAL_ERROR',
+      code: "INTERNAL_ERROR",
     });
   }
 };
-
